@@ -2,11 +2,13 @@ package com.example.materialrickandmorty.ui.screens.loading
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -20,15 +22,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.materialrickandmorty.R
 import com.example.materialrickandmorty.ui.theme.CardContainer
 import com.example.materialrickandmorty.ui.theme.DarkBackground
 import com.example.materialrickandmorty.ui.theme.HeaderTitleText
 import com.example.materialrickandmorty.ui.theme.IconPurple
-import com.example.materialrickandmorty.ui.theme.NavSelectionPill
 
 @Composable
 fun LoadingScreen(
@@ -85,8 +89,14 @@ fun LoadingScreen(
             Spacer(modifier = Modifier.weight(1.2f))
         }
 
-        RickAndMortySilhouettes(
-            modifier = Modifier.align(Alignment.BottomCenter)
+        // Display rickandmorty.png at the bottom start as requested
+        Image(
+            painter = painterResource(id = R.drawable.rickandmorty),
+            contentDescription = "Rick and Morty",
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth(0.75f),
+            contentScale = ContentScale.FillWidth
         )
     }
 }
