@@ -1,6 +1,7 @@
 # Agents and AI artifacts
 .agents/
 .artifacts/
+IA/
 
 # Built application files
 *.apk

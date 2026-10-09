@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "302924843361-g3b7p4l73h5n3lkdf7vist026ugum4pm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.materialrickandmorty",
+            "certificate_hash": "277e651ab86d20e75b49530e26925c08681eb3cf"
+          }
+        },
+        {
           "client_id": "302924843361-oebfk50t6ma0vmt41hklltllkb7blgkp.apps.googleusercontent.com",
           "client_type": 3
         }

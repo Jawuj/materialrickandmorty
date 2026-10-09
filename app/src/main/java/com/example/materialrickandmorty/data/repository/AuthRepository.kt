@@ -75,20 +75,35 @@ class AuthRepository(
 
     private fun parseAuthException(e: Throwable): Throwable {
         return when (e) {
-            is FirebaseAuthInvalidUserException, is FirebaseAuthInvalidCredentialsException -> {
-                Exception("Invalid email or password.")
+            is FirebaseAuthWeakPasswordException -> {
+                val reason = e.reason?.takeIf { it.isNotBlank() }
+                Exception(reason ?: "La contraseña debe tener al menos 6 caracteres.")
             }
             is FirebaseAuthUserCollisionException -> {
-                Exception("An account already exists with this email address.")
+                Exception("Ya existe una cuenta con este correo. Inicia sesión o recupera tu contraseña.")
             }
-            is FirebaseAuthWeakPasswordException -> {
-                Exception("Password should be at least 6 characters long.")
+            is FirebaseAuthInvalidUserException -> {
+                when (e.errorCode) {
+                    "ERROR_USER_NOT_FOUND", "ERROR_USER_DISABLED" -> Exception("No existe una cuenta activa con ese correo. Crea una cuenta o verifica el correo.")
+                    else -> Exception("No se pudo encontrar la cuenta. Comprueba el correo e inténtalo de nuevo.")
+                }
+            }
+            is FirebaseAuthInvalidCredentialsException -> {
+                when (e.errorCode) {
+                    "ERROR_WRONG_PASSWORD", "ERROR_INVALID_CREDENTIAL" -> Exception("La contraseña no coincide con esa cuenta. Comprueba que la escribiste bien o recupera tu contraseña.")
+                    "ERROR_INVALID_EMAIL" -> Exception("El formato del correo no es válido.")
+                    else -> Exception("El correo o la contraseña no son válidos. Comprueba tus datos e inténtalo de nuevo.")
+                }
             }
             is FirebaseNetworkException -> {
-                Exception("Network error. Please check your connection.")
+                Exception("No se pudo conectar con Firebase. Comprueba tu conexión a Internet e inténtalo otra vez.")
             }
             is FirebaseAuthException -> {
-                Exception(e.localizedMessage ?: "Authentication failed.")
+                when (e.errorCode) {
+                    "ERROR_OPERATION_NOT_ALLOWED" -> Exception("Este método de acceso está desactivado en Firebase Authentication.")
+                    "ERROR_TOO_MANY_REQUESTS" -> Exception("Hubo demasiados intentos. Espera un momento e inténtalo de nuevo.")
+                    else -> Exception("Firebase rechazó el acceso (${e.errorCode}). Revisa la configuración de Authentication en Firebase.")
+                }
             }
             else -> e
         }

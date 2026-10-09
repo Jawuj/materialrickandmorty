@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import android.util.Patterns
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -80,6 +81,7 @@ fun AuthScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var localError by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         modifier = modifier
@@ -218,7 +220,7 @@ fun AuthScreen(
                     if (isSignUpMode) {
                         OutlinedTextField(
                             value = name,
-                            onValueChange = { name = it },
+                        onValueChange = { name = it; localError = null },
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text("Name", color = IconPurple) },
                             placeholder = { Text("Enter your name", color = CardText) },
@@ -243,7 +245,7 @@ fun AuthScreen(
                     // Email Field
                     OutlinedTextField(
                         value = email,
-                        onValueChange = { email = it },
+                        onValueChange = { email = it; localError = null },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("Email", color = IconPurple) },
                         placeholder = { Text("Enter your email", color = CardText) },
@@ -268,7 +270,7 @@ fun AuthScreen(
                     // Password Field
                     OutlinedTextField(
                         value = password,
-                        onValueChange = { password = it },
+                        onValueChange = { password = it; localError = null },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("Password", color = IconPurple) },
                         placeholder = { Text("Enter your password", color = CardText) },
@@ -298,6 +300,15 @@ fun AuthScreen(
                         singleLine = true
                     )
 
+                    if (isSignUpMode) {
+                        Text(
+                            text = "La contraseña debe tener al menos 6 caracteres. Por defecto, no se exige un carácter especial.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = CardText,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                    }
+
                     if (!isSignUpMode && isFullBrandScreen) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
@@ -310,9 +321,10 @@ fun AuthScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    if (errorMessage != null) {
+                    val visibleError = localError ?: errorMessage
+                    if (visibleError != null) {
                         Text(
-                            text = errorMessage,
+                            text = visibleError,
                             color = Color(0xFFD32F2F),
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(bottom = 10.dp)
@@ -332,10 +344,27 @@ fun AuthScreen(
                         // Main Action Button
                         Button(
                             onClick = {
+                                localError = null
+                                if (email.isBlank()) {
+                                    localError = "Escribe tu correo electrónico."
+                                    return@Button
+                                }
+                                if (!Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
+                                    localError = "El formato del correo no es válido."
+                                    return@Button
+                                }
                                 if (isSignUpMode) {
-                                    onSignUpClick(email.trim(), password.trim(), name.trim())
+                                    if (password.length < 6) {
+                                        localError = "La contraseña debe tener al menos 6 caracteres. No necesita un carácter especial por defecto."
+                                        return@Button
+                                    }
+                                    onSignUpClick(email.trim(), password, name.trim())
                                 } else {
-                                    onLoginClick(email.trim(), password.trim())
+                                    if (password.isEmpty()) {
+                                        localError = "Escribe tu contraseña."
+                                        return@Button
+                                    }
+                                    onLoginClick(email.trim(), password)
                                 }
                             },
                             modifier = Modifier

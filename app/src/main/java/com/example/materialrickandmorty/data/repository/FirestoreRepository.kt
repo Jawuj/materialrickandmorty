@@ -23,7 +23,7 @@ class FirestoreRepository(
             } else {
                 UserProfile(uid = uid)
             }
-        }
+        }.mapFailure(::mapFirestoreException)
     }
 
     fun observeUserProfile(uid: String): Flow<UserProfile?> = callbackFlow {
@@ -35,7 +35,7 @@ class FirestoreRepository(
 
         val listener = usersCollection.document(uid).addSnapshotListener { snapshot, error ->
             if (error != null) {
-                trySend(null)
+                close(error)
                 return@addSnapshotListener
             }
             if (snapshot != null && snapshot.exists()) {
@@ -67,14 +67,16 @@ class FirestoreRepository(
                 )
             )
             usersCollection.document(profile.uid).set(map, SetOptions.merge()).await()
-        }
+            Unit
+        }.mapFailure(::mapFirestoreException)
     }
 
     suspend fun updateName(uid: String, newName: String): Result<Unit> {
         return runCatching {
             val map = mapOf("name" to newName)
             usersCollection.document(uid).set(map, SetOptions.merge()).await()
-        }
+            Unit
+        }.mapFailure(::mapFirestoreException)
     }
 
     suspend fun toggleFavoriteCharacter(uid: String, characterId: Int, currentFavs: List<Int>): Result<Unit> {
@@ -86,7 +88,8 @@ class FirestoreRepository(
             }
             val map = mapOf("favorites" to updated)
             usersCollection.document(uid).set(map, SetOptions.merge()).await()
-        }
+            Unit
+        }.mapFailure(::mapFirestoreException)
     }
 
     suspend fun toggleFavoriteEpisode(uid: String, episodeId: Int, currentFavEpisodes: List<Int>): Result<Unit> {
@@ -98,7 +101,8 @@ class FirestoreRepository(
             }
             val map = mapOf("favoriteEpisodes" to updated)
             usersCollection.document(uid).set(map, SetOptions.merge()).await()
-        }
+            Unit
+        }.mapFailure(::mapFirestoreException)
     }
 
     suspend fun toggleEpisodeWatched(uid: String, episodeId: Int, currentWatched: List<Int>): Result<Unit> {
@@ -110,7 +114,8 @@ class FirestoreRepository(
             }
             val map = mapOf("episodesWatched" to updated)
             usersCollection.document(uid).set(map, SetOptions.merge()).await()
-        }
+            Unit
+        }.mapFailure(::mapFirestoreException)
     }
 
     suspend fun updateHideEmailSetting(uid: String, hideEmail: Boolean): Result<Unit> {
@@ -121,7 +126,8 @@ class FirestoreRepository(
                 )
             )
             usersCollection.document(uid).set(map, SetOptions.merge()).await()
-        }
+            Unit
+        }.mapFailure(::mapFirestoreException)
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -153,4 +159,18 @@ class FirestoreRepository(
             )
         )
     }
+
+    private fun mapFirestoreException(error: Throwable): Throwable {
+        val firestoreError = error as? com.google.firebase.firestore.FirebaseFirestoreException ?: return error
+        return when (firestoreError.code) {
+            com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                Exception("Firestore denegó el acceso. Comprueba que las reglas publicadas permitan al usuario acceder a su propio perfil.", error)
+            com.google.firebase.firestore.FirebaseFirestoreException.Code.UNAVAILABLE ->
+                Exception("Firestore no está disponible. Comprueba la conexión a Internet.", error)
+            else -> Exception("Error de Firestore (${firestoreError.code}): ${firestoreError.localizedMessage}", error)
+        }
+    }
+
+    private inline fun <T> Result<T>.mapFailure(transform: (Throwable) -> Throwable): Result<T> =
+        fold(onSuccess = { Result.success(it) }, onFailure = { Result.failure(transform(it)) })
 }

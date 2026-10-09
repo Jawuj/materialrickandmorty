@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.catch
 
 sealed interface UiState<out T> {
     object Idle : UiState<Nothing>
@@ -93,7 +94,11 @@ class RickAndMortyViewModel(
                 profileObserverJob?.cancel()
                 if (user != null) {
                     profileObserverJob = viewModelScope.launch {
-                        firestoreRepository.observeUserProfile(user.uid).collect { profile ->
+                        firestoreRepository.observeUserProfile(user.uid)
+                            .catch { error ->
+                                _authError.value = firestoreErrorMessage(error)
+                            }
+                            .collect { profile ->
                             if (profile != null) {
                                 _userProfile.value = profile
                                 _favoriteIds.value = profile.favorites.toSet()
@@ -106,6 +111,7 @@ class RickAndMortyViewModel(
                                     photoUrl = user.photoUrl?.toString() ?: ""
                                 )
                                 firestoreRepository.saveUserProfile(newProfile)
+                                    .onFailure { error -> _authError.value = firestoreErrorMessage(error) }
                                 _userProfile.value = newProfile
                             }
                         }
@@ -155,6 +161,7 @@ class RickAndMortyViewModel(
                         photoUrl = user.photoUrl?.toString() ?: ""
                     )
                     firestoreRepository.saveUserProfile(profile)
+                        .onFailure { error -> _authError.value = firestoreErrorMessage(error) }
                     _isAuthLoading.value = false
                 }
                 .onFailure { throwable ->
@@ -177,6 +184,7 @@ class RickAndMortyViewModel(
                         photoUrl = user.photoUrl?.toString() ?: ""
                     )
                     firestoreRepository.saveUserProfile(profile)
+                        .onFailure { error -> _authError.value = firestoreErrorMessage(error) }
                     _isAuthLoading.value = false
                 }
                 .onFailure { throwable ->
@@ -190,13 +198,32 @@ class RickAndMortyViewModel(
         authRepository.signOut()
     }
 
+    fun reportAuthError(message: String) {
+        _authError.value = message
+    }
+
+    private fun firestoreErrorMessage(error: Throwable): String {
+        return when (error) {
+            is com.google.firebase.firestore.FirebaseFirestoreException -> when (error.code) {
+                com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                    "Firebase Authentication funcionó, pero Firestore rechazó el perfil. Publica las reglas de firestore.rules en el proyecto Firebase."
+                com.google.firebase.firestore.FirebaseFirestoreException.Code.UNAVAILABLE ->
+                    "No se pudo conectar con Firestore. Comprueba tu conexión e inténtalo de nuevo."
+                else -> "No se pudo guardar el perfil en Firestore (${error.code})."
+            }
+            else -> "No se pudo guardar el perfil en Firestore: ${error.localizedMessage ?: "error desconocido"}"
+        }
+    }
+
     fun updateDisplayName(newName: String) {
         val user = currentUser.value ?: return
         val updatedProfile = _userProfile.value.copy(name = newName)
         _userProfile.value = updatedProfile
         viewModelScope.launch {
             authRepository.updateDisplayName(newName)
+                .onFailure { _authError.value = it.localizedMessage ?: "No se pudo actualizar el nombre." }
             firestoreRepository.updateName(user.uid, newName)
+                .onFailure { _authError.value = firestoreErrorMessage(it) }
         }
     }
 
@@ -206,6 +233,7 @@ class RickAndMortyViewModel(
         _userProfile.value = _userProfile.value.copy(settings = updatedSettings)
         viewModelScope.launch {
             firestoreRepository.updateHideEmailSetting(user.uid, hideEmail)
+                .onFailure { _authError.value = firestoreErrorMessage(it) }
         }
     }
 
@@ -286,6 +314,7 @@ class RickAndMortyViewModel(
         if (user != null && user.uid.isNotBlank()) {
             viewModelScope.launch {
                 firestoreRepository.toggleFavoriteCharacter(user.uid, character.id, currentProfile.favorites)
+                    .onFailure { _authError.value = firestoreErrorMessage(it) }
             }
         }
     }
@@ -305,6 +334,7 @@ class RickAndMortyViewModel(
         if (user != null && user.uid.isNotBlank()) {
             viewModelScope.launch {
                 firestoreRepository.toggleFavoriteEpisode(user.uid, episodeId, currentProfile.favoriteEpisodes)
+                    .onFailure { _authError.value = firestoreErrorMessage(it) }
             }
         }
     }
@@ -324,6 +354,7 @@ class RickAndMortyViewModel(
         if (user != null && user.uid.isNotBlank()) {
             viewModelScope.launch {
                 firestoreRepository.toggleEpisodeWatched(user.uid, episodeId, currentProfile.episodesWatched)
+                    .onFailure { _authError.value = firestoreErrorMessage(it) }
             }
         }
     }

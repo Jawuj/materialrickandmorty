@@ -1,8 +1,6 @@
 package com.example.materialrickandmorty.ui.navigation
 
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -22,8 +20,6 @@ import com.example.materialrickandmorty.ui.screens.detail.CharacterDetailScreen
 import com.example.materialrickandmorty.ui.screens.loading.LoadingScreen
 import com.example.materialrickandmorty.ui.screens.pick.PickScreen
 import com.example.materialrickandmorty.ui.viewmodel.RickAndMortyViewModel
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -38,17 +34,9 @@ fun NavGraph(
     val isAuthLoading by viewModel.isAuthLoading.collectAsState()
     val authError by viewModel.authError.collectAsState()
 
-    // Fallback launcher for Google Sign In
-    val googleSignInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        runCatching {
-            val account = task.getResult(ApiException::class.java)
-            val idToken = account?.idToken ?: throw Exception("Google sign-in token is null")
-            viewModel.signInWithGoogleCredential(idToken)
-        }.onFailure { error ->
-            Toast.makeText(context, error.localizedMessage ?: "Google sign-in failed", Toast.LENGTH_SHORT).show()
+    LaunchedEffect(authError) {
+        authError?.takeIf { it.isNotBlank() }?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -95,14 +83,12 @@ fun NavGraph(
                 onGoogleSignInClick = {
                     coroutineScope.launch {
                         GoogleSignInHelper.performCredentialManagerSignIn(context)
-                            .onSuccess { idToken ->
-                                viewModel.signInWithGoogleCredential(idToken)
-                            }
-                            .onFailure {
-                                // Fallback to GoogleSignIn Intent
-                                val gso = GoogleSignInHelper.getGoogleSignInOptions(context)
-                                val client = GoogleSignIn.getClient(context, gso)
-                                googleSignInLauncher.launch(client.signInIntent)
+                            .onSuccess(viewModel::signInWithGoogleCredential)
+                            .onFailure { error ->
+                                viewModel.reportAuthError(
+                                    "No se pudo iniciar sesión con Google: ${error.localizedMessage ?: error.javaClass.simpleName}. " +
+                                        "Comprueba que Google esté habilitado en Firebase Authentication y que el SHA-1 de esta app esté registrado."
+                                )
                             }
                     }
                 },
