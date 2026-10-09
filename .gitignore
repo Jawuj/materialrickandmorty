@@ -1,3 +1,7 @@
+# Agents and AI artifacts
+.agents/
+.artifacts/
+
 # Built application files
 *.apk
 *.aar
@@ -47,6 +51,5 @@ Thumbs.db
 # Log files
 *.log
 
-# Temp & Artifacts
-.artifacts/
+# Temp files
 app/rickandmorty.png

@@ -1,7 +1,9 @@
 package com.example.materialrickandmorty.ui.screens.pick
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -21,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Movie
@@ -43,19 +45,24 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.materialrickandmorty.data.auth.GoogleSignInHelper
 import com.example.materialrickandmorty.data.model.Character
 import com.example.materialrickandmorty.data.model.Episode
 import com.example.materialrickandmorty.data.model.Location
+import com.example.materialrickandmorty.ui.screens.auth.AuthScreen
+import com.example.materialrickandmorty.ui.screens.profile.ProfileScreen
 import com.example.materialrickandmorty.ui.theme.CardContainer
 import com.example.materialrickandmorty.ui.theme.CardText
 import com.example.materialrickandmorty.ui.theme.DarkBackground
@@ -64,6 +71,9 @@ import com.example.materialrickandmorty.ui.theme.IconPurple
 import com.example.materialrickandmorty.ui.theme.NavSelectionPill
 import com.example.materialrickandmorty.ui.viewmodel.RickAndMortyViewModel
 import com.example.materialrickandmorty.ui.viewmodel.UiState
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.common.api.ApiException
+import kotlinx.coroutines.launch
 
 @Composable
 fun PickScreen(
@@ -71,6 +81,8 @@ fun PickScreen(
     onCharacterClick: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var selectedTab by remember { mutableIntStateOf(0) }
 
     val charactersUiState by viewModel.charactersState.collectAsState()
@@ -78,6 +90,34 @@ fun PickScreen(
     val favoriteCharacters by viewModel.favoriteCharacters.collectAsState()
     val locationsUiState by viewModel.locationsState.collectAsState()
     val episodesUiState by viewModel.episodesState.collectAsState()
+
+    val currentUser by viewModel.currentUser.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
+    val isAuthLoading by viewModel.isAuthLoading.collectAsState()
+    val authError by viewModel.authError.collectAsState()
+
+    // Google Sign-In launcher fallback
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        runCatching {
+            val account = task.getResult(ApiException::class.java)
+            val idToken = account?.idToken ?: throw Exception("Google sign-in token is null")
+            viewModel.signInWithGoogleCredential(idToken)
+        }.onFailure { error ->
+            Toast.makeText(context, error.localizedMessage ?: "Google sign-in failed", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun handleGuestAction(action: () -> Unit) {
+        if (currentUser == null) {
+            Toast.makeText(context, "Sign in to save favorites and watched episodes", Toast.LENGTH_SHORT).show()
+            selectedTab = 4
+        } else {
+            action()
+        }
+    }
 
     LaunchedEffect(selectedTab) {
         when (selectedTab) {
@@ -135,6 +175,14 @@ fun PickScreen(
                     label = { Text("Favorites", fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal) },
                     colors = navItemColors
                 )
+
+                NavigationBarItem(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
+                    icon = { Icon(Icons.Filled.AccountCircle, contentDescription = "Profile") },
+                    label = { Text("Profile", fontWeight = if (selectedTab == 4) FontWeight.Bold else FontWeight.Normal) },
+                    colors = navItemColors
+                )
             }
         }
     ) { innerPadding ->
@@ -142,9 +190,11 @@ fun PickScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = if (selectedTab == 4) 0.dp else 16.dp)
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            if (selectedTab != 4) {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             // Search Bar for Characters Tab or Header with Back Button for other Tabs
             if (selectedTab == 0) {
@@ -186,8 +236,7 @@ fun PickScreen(
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
-            } else {
-                // Header with Back Circle Icon and Title (Matching rickandmorty.png images 4, 5, 6)
+            } else if (selectedTab != 4) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -243,7 +292,9 @@ fun PickScreen(
                         isPagingLoading = charactersUiState.isPagingLoading,
                         favoriteIds = favoriteIds,
                         errorMessage = charactersUiState.error,
-                        onFavoriteToggle = { viewModel.toggleFavorite(it) },
+                        onFavoriteToggle = { character ->
+                            handleGuestAction { viewModel.toggleFavorite(character) }
+                        },
                         onCharacterClick = onCharacterClick,
                         onLoadMore = { viewModel.loadCharacters(reset = false) }
                     )
@@ -253,14 +304,57 @@ fun PickScreen(
                     )
 
                     2 -> EpisodesTab(
-                        state = episodesUiState
+                        state = episodesUiState,
+                        favoriteEpisodes = userProfile.favoriteEpisodes,
+                        episodesWatched = userProfile.episodesWatched,
+                        onFavoriteToggle = { epId ->
+                            handleGuestAction { viewModel.toggleFavoriteEpisode(epId) }
+                        },
+                        onWatchedToggle = { epId ->
+                            handleGuestAction { viewModel.toggleEpisodeWatched(epId) }
+                        }
                     )
 
                     3 -> FavoritesTab(
                         favoriteCharacters = favoriteCharacters,
-                        onFavoriteToggle = { viewModel.toggleFavorite(it) },
+                        onFavoriteToggle = { character ->
+                            handleGuestAction { viewModel.toggleFavorite(character) }
+                        },
                         onCharacterClick = onCharacterClick
                     )
+
+                    4 -> {
+                        if (currentUser != null) {
+                            ProfileScreen(
+                                userProfile = userProfile,
+                                onBackClick = { selectedTab = 0 },
+                                onUpdateName = { viewModel.updateDisplayName(it) },
+                                onToggleHideEmail = { viewModel.toggleHideEmail(it) },
+                                onLogOutClick = { viewModel.signOut() }
+                            )
+                        } else {
+                            AuthScreen(
+                                isLoading = isAuthLoading,
+                                errorMessage = authError,
+                                onLoginClick = { email, pass -> viewModel.loginWithEmail(email, pass) },
+                                onSignUpClick = { email, pass, name -> viewModel.signUpWithEmail(email, pass, name) },
+                                onGoogleSignInClick = {
+                                    coroutineScope.launch {
+                                        GoogleSignInHelper.performCredentialManagerSignIn(context)
+                                            .onSuccess { idToken ->
+                                                viewModel.signInWithGoogleCredential(idToken)
+                                            }
+                                            .onFailure {
+                                                val gso = GoogleSignInHelper.getGoogleSignInOptions(context)
+                                                val client = GoogleSignIn.getClient(context, gso)
+                                                googleSignInLauncher.launch(client.signInIntent)
+                                            }
+                                    }
+                                },
+                                isFullBrandScreen = false
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -398,7 +492,11 @@ fun LocationsTab(
 
 @Composable
 fun EpisodesTab(
-    state: UiState<List<Episode>>
+    state: UiState<List<Episode>>,
+    favoriteEpisodes: List<Int> = emptyList(),
+    episodesWatched: List<Int> = emptyList(),
+    onFavoriteToggle: (Int) -> Unit = {},
+    onWatchedToggle: (Int) -> Unit = {}
 ) {
     when (state) {
         is UiState.Loading -> {
@@ -420,7 +518,13 @@ fun EpisodesTab(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(episodes, key = { it.id }) { ep ->
-                        EpisodeCard(episode = ep)
+                        EpisodeCard(
+                            episode = ep,
+                            isFavorite = favoriteEpisodes.contains(ep.id),
+                            isWatched = episodesWatched.contains(ep.id),
+                            onFavoriteToggle = { onFavoriteToggle(ep.id) },
+                            onWatchedToggle = { onWatchedToggle(ep.id) }
+                        )
                     }
                 }
             }

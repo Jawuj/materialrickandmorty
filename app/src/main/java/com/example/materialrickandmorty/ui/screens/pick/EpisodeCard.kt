@@ -12,11 +12,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +37,10 @@ import com.example.materialrickandmorty.ui.theme.IconPurple
 @Composable
 fun EpisodeCard(
     episode: Episode,
+    isFavorite: Boolean = false,
+    isWatched: Boolean = false,
+    onFavoriteToggle: (() -> Unit)? = null,
+    onWatchedToggle: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -55,12 +64,39 @@ fun EpisodeCard(
                     color = IconPurple,
                     modifier = Modifier.weight(1f)
                 )
-                Icon(
-                    imageVector = Icons.Filled.Movie,
-                    contentDescription = null,
-                    tint = IconPurple,
-                    modifier = Modifier.size(24.dp)
-                )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onWatchedToggle != null) {
+                        IconButton(onClick = onWatchedToggle, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                imageVector = if (isWatched) Icons.Filled.Visibility else Icons.Outlined.VisibilityOff,
+                                contentDescription = "Watched",
+                                tint = if (isWatched) IconPurple else CardText,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    if (onFavoriteToggle != null) {
+                        IconButton(onClick = onFavoriteToggle, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                contentDescription = "Favorite",
+                                tint = IconPurple,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.Filled.Movie,
+                        contentDescription = null,
+                        tint = IconPurple,
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .size(22.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
